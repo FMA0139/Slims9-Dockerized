@@ -1,34 +1,38 @@
 # Use an official PHP runtime as a parent image
-FROM php:7.2-apache
+FROM php:8.1-apache
 
-# Set the working directory to /var/www/html
+# Install the GD, gettext, mbstring, mysqli, pdo_mysql, and YAZ extensions
+RUN apt-get update && apt-get install -y \
+    libfreetype6-dev \
+    libjpeg62-turbo-dev \
+    libpng-dev \
+    gettext \
+    libonig-dev \
+    libyaz-dev \
+&& docker-php-ext-configure gd --with-freetype --with-jpeg \
+&& docker-php-ext-install -j$(nproc) gd \
+&& docker-php-ext-install gettext \
+&& docker-php-ext-install mbstring \
+&& docker-php-ext-install mysqli \
+&& docker-php-ext-install pdo_mysql \
+&& pecl install yaz \
+&& docker-php-ext-enable yaz
+
+# Set the working directory in the container
 WORKDIR /var/www/html
 
 # Copy the current directory contents into the container at /var/www/html
-COPY . /var/www/html
+COPY ./app /var/www/html
 
-# Install IonCube Loader for PHP 7.2
-RUN curl -o ioncube.tar.gz http://downloads3.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz \
-    && tar -xzf ioncube.tar.gz \
-    && mv ioncube/ioncube_loader_lin_7.2.so /usr/local/lib/php/extensions/no-debug-non-zts-20170718/ioncube_loader_lin_7.2.so \
-    && echo "zend_extension = /usr/local/lib/php/extensions/no-debug-non-zts-20170718/ioncube_loader_lin_7.2.so" > /usr/local/etc/php/conf.d/00-ioncube.ini \
-    && rm -rf ioncube.tar.gz ioncube
+# Define volumes for persistent data
+VOLUME /var/www/html/
 
-# Enable allow_url_fopen
-RUN echo "allow_url_fopen = On" > /usr/local/etc/php/conf.d/01-allow_url_fopen.ini
+# Make directories writable and change ownership
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 777 /var/www/html
 
-# Install cURL
-RUN apt-get update && apt-get install -y libcurl4-openssl-dev \
-    && docker-php-ext-install curl
-
-# Install MySQL extension for PHP
-RUN docker-php-ext-install mysqli pdo pdo_mysql
-
-# Enable mod_rewrite
-RUN a2enmod rewrite
-
-# Expose port 80 to the outside world
+# Make port 80 available to the world outside this container
 EXPOSE 80
 
-# Define the command to run your application
+# Run app.py when the container launches
 CMD ["apache2-foreground"]

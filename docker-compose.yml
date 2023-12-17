@@ -1,0 +1,57 @@
+version: "3.8"
+services:
+  slims9-db:
+    image: mariadb:latest
+    container_name: slims9-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=
+      - MYSQL_DATABASE=
+      - MYSQL_USER=
+      - MYSQL_PASSWORD=
+    restart: unless-stopped # run as a service
+    volumes:
+      - ./slims9_db:/var/lib/mysql
+    labels:
+      - io.portainer.accesscontrol.administrators
+    networks:
+      - proxy
+
+  slims9-app:
+    image: fma0139/slims9:latest
+    container_name: slims9-app
+    environment:
+      - DATABASE_HOST=slims9-db
+      - DATABASE_USER=
+      - DATABASE_PASSWORD=
+      - DATABASE_NAME=
+    depends_on:
+      - slims9-db
+    volumes:
+      - app-data:/var/www/html
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.slims9.entrypoints=websecure # domain
+      # ----------------------------------------------- routers for domain ----------------------------------------
+      - traefik.http.routers.slims9.rule=Host(`domain.com`) # domain
+      - traefik.http.routers.slims9.service=slims9
+      - traefik.http.routers.slims9.middlewares=sslheader
+      - traefik.http.routers.slims9.tls.certresolver=letsencrypt
+      # ====================================================== services ============================================================
+      - traefik.http.services.slims9.loadbalancer.server.port=80
+      - traefik.http.services.slims9-ws.loadbalancer.server.port=443
+      # ===================================================== middlewares ==========================================================
+      - traefik.http.middlewares.gzip.compress=true
+      - traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https
+      - traefik.http.middlewares.limit.buffering.memRequestBodyBytes=20971520
+      - traefik.http.middlewares.limit.buffering.maxRequestBodyBytes=20971520
+    restart: unless-stopped # run as a service
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+
+volumes:
+  app-data:
